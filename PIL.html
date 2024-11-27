@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="Polinomios.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polinomio de Interpolación de Lagrange</title>
+    <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="titulo">
+            <h1>Polinomio de Interpolación de Lagrange</h1>
+        </header>
+        <div class="selec">
+            <div>
+                <label for="cantidad">Cantidad de puntos:</label>
+                <input type="number" id="cantidad" placeholder="Cantidad de puntos">
+                <button onclick="generarInputs()">Generar Puntos</button>
+            </div>
+            <div id="inputs-container"></div>
+            <div>
+                <label for="evaluar">Punto a evaluar:</label>
+                <input type="number" id="evaluar" placeholder="Punto a evaluar">
+                <button onclick="calcularLagrange()">Calcular</button>
+            </div>
+        </div>
+        <div id="resultados"></div>
+        <div id="grafico"></div>
+    </div>
+
+    <script>
+        function generarInputs() {
+            const cantidad = document.getElementById('cantidad').value;
+            const container = document.getElementById('inputs-container');
+            container.innerHTML = '';
+            for (let i = 0; i < cantidad; i++) {
+                container.innerHTML += `
+                    <label>Punto ${i + 1}: </label>
+                    x<input type="number" id="x${i}">
+                    y<input type="number" id="y${i}"><br>
+                `;
+            }
+        }
+
+        function calcularLagrange() {
+            const cantidad = document.getElementById('cantidad').value;
+            const x = [];
+            const y = [];
+            for (let i = 0; i < cantidad; i++) {
+                x.push(parseFloat(document.getElementById(`x${i}`).value));
+                y.push(parseFloat(document.getElementById(`y${i}`).value));
+            }
+
+            const evaluar = parseFloat(document.getElementById('evaluar').value);
+            let polinomio = [];
+            let resultado = 0;
+
+            for (let i = 0; i < x.length; i++) {
+                let li = [y[i]];
+                let denominador = 1;
+
+                for (let j = 0; j < x.length; j++) {
+                    if (i !== j) {
+                        li = multiplicarPolinomios(li, [-x[j], 1]);
+                        denominador *= (x[i] - x[j]);
+                    }
+                }
+
+                li = li.map(coef => coef / denominador);
+                polinomio = sumarPolinomios(polinomio, li);
+
+                // Evaluar en el punto dado
+                let valorL = evaluarPolinomio(li, evaluar);
+                resultado += valorL;
+            }
+
+            const expandido = formatearPolinomio(polinomio);
+
+            document.getElementById('resultados').innerHTML = `
+                <h2>Resultados</h2>
+                <p><strong>Forma calculada:</strong> ${formatearPolinomio(polinomio)}</p>
+                <p><strong>Forma expandida:</strong> ${expandido}</p>
+                <p><strong>Evaluación en x = ${evaluar}:</strong> ${resultado.toFixed(2)}</p>
+            `;
+
+            graficarPolinomio(polinomio, x, y);
+        }
+
+        function multiplicarPolinomios(p1, p2) {
+            const resultado = Array(p1.length + p2.length - 1).fill(0);
+            for (let i = 0; i < p1.length; i++) {
+                for (let j = 0; j < p2.length; j++) {
+                    resultado[i + j] += p1[i] * p2[j];
+                }
+            }
+            return resultado;
+        }
+
+        function sumarPolinomios(p1, p2) {
+            const maxLength = Math.max(p1.length, p2.length);
+            const resultado = Array(maxLength).fill(0);
+            for (let i = 0; i < maxLength; i++) {
+                resultado[i] = (p1[i] || 0) + (p2[i] || 0);
+            }
+            return resultado;
+        }
+
+        function evaluarPolinomio(p, x) {
+            return p.reduce((acc, coef, i) => acc + coef * Math.pow(x, i), 0);
+        }
+
+        function formatearPolinomio(p) {
+            return p
+                .map((coef, i) => {
+                    if (coef === 0) return '';
+                    if (i === 0) return `${coef.toFixed(2)}`;
+                    if (i === 1) return `${coef.toFixed(2)}x`;
+                    return `${coef.toFixed(2)}x^${i}`;
+                })
+                .filter(Boolean)
+                .join(' + ');
+        }
+
+        function graficarPolinomio(polinomio, xValues, yValues) {
+    const xRange = [];
+    const yRange = [];
+
+    // Crear un rango de valores para graficar el polinomio
+    for (let i = Math.min(...xValues) - 1; i <= Math.max(...xValues) + 1; i += 0.1) {
+        xRange.push(i);
+        yRange.push(evaluarPolinomio(polinomio, i));
+    }
+
+    // Obtener el valor del punto evaluado
+    const evaluar = parseFloat(document.getElementById("evaluar").value);
+    const yEvaluar = evaluarPolinomio(polinomio, evaluar);
+
+    // Trazo para los puntos originales
+    const trace1 = {
+        x: xValues,
+        y: yValues,
+        mode: "markers",
+        name: "Puntos originales",
+        marker: { color: "blue", size: 8 }
+    };
+
+    // Trazo para el polinomio de interpolación
+    const trace2 = {
+        x: xRange,
+        y: yRange,
+        mode: "lines",
+        name: "Polinomio de Interpolación",
+        line: { color: "red" }
+    };
+
+    // Trazo para el punto evaluado
+    const trace3 = {
+        x: [evaluar],
+        y: [yEvaluar],
+        mode: "markers+text",
+        name: `Punto evaluado (${evaluar}, ${yEvaluar.toFixed(2)})`,
+        marker: { color: "green", size: 10 },
+        text: [`(${evaluar.toFixed(2)}, ${yEvaluar.toFixed(2)})`],
+        textposition: "top center"
+    };
+
+    const layout = {
+        title: "Interpolación de Lagrange",
+        xaxis: { title: "x" },
+        yaxis: { title: "y" }
+    };
+
+    Plotly.newPlot("grafico", [trace1, trace2, trace3], layout);
+}
+    </script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="Polinomios.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polinomio de Interpolación de Newton</title>
+    <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="titulo">
+            <h1>Polinomio de Interpolación de Newton</h1>
+        </header>
+
+        <!-- Selección de ecuación y puntos -->
+        <div class="selec">
+            <h2 style="color: aliceblue;">Ingresar Datos</h2>
+            <div>
+                <label for="equation">Ecuación \( f(x) \):</label>
+                <input type="text" id="equation" placeholder="Ej: Math.exp(x), Math.sin(x), x**2 + 3" style="width: 300px;">
+            </div>
+            <div>
+                <label for="cantidad">Cantidad de puntos:</label>
+                <input type="number" id="cantidad" placeholder="Cantidad de puntos" min="2">
+                <button onclick="generarInputs()">Generar Puntos</button>
+            </div>
+            <div id="inputs-container"></div>
+            <div>
+                <label for="evaluar">Punto a evaluar:</label>
+                <input type="number" id="evaluar" placeholder="Punto a evaluar">
+                <button onclick="calcularNewton()">Calcular Polinomio</button>
+            </div>
+        </div>
+
+        <div id="resultados"></div>
+        <div id="grafico"></div>
+    </div>
+
+    <script>
+        // Generar campos de entrada dinámicos para los puntos x
+        function generarInputs() {
+            const cantidad = parseInt(document.getElementById('cantidad').value);
+            const container = document.getElementById('inputs-container');
+            container.innerHTML = '';
+
+            // Crear inputs para x
+            for (let i = 0; i < cantidad; i++) {
+                container.innerHTML += `
+                    <div>
+                        <label for="x${i}">x${i}:</label>
+                        <input type="number" id="x${i}" placeholder="Valor de x${i}">
+                    </div>
+                `;
+            }
+        }
+
+        // Función para evaluar una ecuación de manera segura
+        function evaluarEcuacion(equation, xValue) {
+            try {
+                // Reemplazar x**n por Math.pow(x, n)
+                equation = equation.replace(/x\*\*(\d+)/g, function(match, p1) {
+                    return `Math.pow(x, ${p1})`;
+                });
+
+                // Reemplazar otros casos de x^n si se ingresan
+                equation = equation.replace(/x\^(\d+)/g, function(match, p1) {
+                    return `Math.pow(x, ${p1})`;
+                });
+
+                // Crear una función con la ecuación modificada
+                const func = new Function("x", `with (Math) { return ${equation}; }`);
+                return func(xValue);
+            } catch (error) {
+                throw new Error("La ecuación no es válida. Por favor verifica la sintaxis.");
+            }
+        }
+
+        // Función principal para calcular el polinomio de Newton
+        function calcularNewton() {
+            const cantidad = parseInt(document.getElementById('cantidad').value);
+            const equation = document.getElementById('equation').value;
+            const x = [];
+            const y = [];
+
+            // Obtener valores de x
+            for (let i = 0; i < cantidad; i++) {
+                x.push(parseFloat(document.getElementById(`x${i}`).value));
+            }
+
+            // Evaluar la ecuación en los puntos x
+            try {
+                for (let i = 0; i < x.length; i++) {
+                    y.push(evaluarEcuacion(equation, x[i]));
+                }
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+
+            // Calcular diferencias divididas
+            const coeficientes = diferenciasDivididas(x, y);
+
+            // Obtener el punto a evaluar
+            const evaluar = parseFloat(document.getElementById('evaluar').value);
+
+            // Evaluar el polinomio en el punto ingresado
+            const resultado = evaluarPolinomioNewton(coeficientes, x, evaluar);
+
+            // Construir el polinomio expandido (en términos de x^n)
+            const polinomio = construirPolinomioNewtonExpandido(coeficientes, x);
+
+            // Mostrar resultados
+            document.getElementById('resultados').innerHTML = `
+                <h2>Resultados</h2>
+                <p><strong>Polinomio expandido:</strong> ${polinomio}</p>
+                <p><strong>Evaluación en x = ${evaluar}:</strong> ${resultado.toFixed(2)}</p>
+            `;
+
+            // Graficar puntos, polinomio y el punto evaluado
+            graficarPuntosYPolinomio(x, y, coeficientes, evaluar, resultado);
+        }
+
+        // Calcular diferencias divididas
+        function diferenciasDivididas(x, y) {
+            const n = x.length;
+            const tabla = Array(n).fill(null).map(() => Array(n).fill(0));
+            for (let i = 0; i < n; i++) tabla[i][0] = y[i];
+            for (let j = 1; j < n; j++) {
+                for (let i = 0; i < n - j; i++) {
+                    tabla[i][j] = (tabla[i + 1][j - 1] - tabla[i][j - 1]) / (x[i + j] - x[i]);
+                }
+            }
+            console.log("Diferencias divididas:", tabla[0]);
+            return tabla[0];
+        }
+
+        // Evaluar el polinomio de Newton en un punto
+        function evaluarPolinomioNewton(coeficientes, x, evaluar) {
+            console.log("Coeficientes:", coeficientes);
+            console.log("Valores de x:", x);
+            console.log("Punto a evaluar:", evaluar);
+
+            let resultado = coeficientes[0];
+            let producto = 1;
+            for (let i = 1; i < coeficientes.length; i++) {
+                producto *= (evaluar - x[i - 1]);
+                resultado += coeficientes[i] * producto;
+            }
+
+            console.log("Resultado del polinomio:", resultado);
+            return resultado;
+        }
+
+        // Función para construir el polinomio expandido de Newton
+        function construirPolinomioNewtonExpandido(coeficientes, x) {
+            let polinomio = [];
+            for (let i = 1; i < coeficientes.length; i++) {
+                let nuevoTermino = [coeficientes[i]];
+
+                for (let j = 0; j < i; j++) {
+                    nuevoTermino = multiplicarPolinomios(nuevoTermino, [-x[j], 1]);
+                }
+
+                polinomio = sumarPolinomios(polinomio, nuevoTermino);
+            }
+            return formatearPolinomio(polinomio);
+        }
+
+        // Función para multiplicar polinomios
+        function multiplicarPolinomios(p1, p2) {
+            const resultado = Array(p1.length + p2.length - 1).fill(0);
+            for (let i = 0; i < p1.length; i++) {
+                for (let j = 0; j < p2.length; j++) {
+                    resultado[i + j] += p1[i] * p2[j];
+                }
+            }
+            return resultado;
+        }
+
+        // Función para sumar polinomios
+        function sumarPolinomios(p1, p2) {
+            const maxLength = Math.max(p1.length, p2.length);
+            const resultado = Array(maxLength).fill(0);
+            for (let i = 0; i < maxLength; i++) {
+                resultado[i] = (p1[i] || 0) + (p2[i] || 0);
+            }
+            return resultado;
+        }
+
+        // Función para formatear el polinomio a una cadena
+        function formatearPolinomio(p) {
+            return p
+                .map((coef, i) => {
+                    if (coef === 0) return '';
+                    if (i === 0) return `${coef.toFixed(2)}`;
+                    if (i === 1) return `${coef.toFixed(2)}x`;
+                    return `${coef.toFixed(2)}x^${i}`;
+                })
+                .filter(Boolean)
+                .join(' + ');
+        }
+
+// Graficar puntos, polinomio y el punto evaluado
+function graficarPuntosYPolinomio(x, y, coeficientes, evaluar, resultado) {
+    const xRange = [];
+    const yRange = [];
+
+    // Aquí aumentamos el rango de x para simular una línea infinita
+    const minX = -1000;  // Valor mínimo de x
+    const maxX = 1000;   // Valor máximo de x
+
+    // Crear valores para graficar el polinomio en un rango más amplio
+    for (let i = minX; i <= maxX; i += 0.1) {
+        xRange.push(i);
+        yRange.push(evaluarPolinomioNewton(coeficientes, x, i));
+    }
+
+    // Graficar puntos y polinomio
+    const puntos = {
+        x: x,
+        y: y,
+        mode: 'markers',
+        type: 'scatter',
+        name: 'Puntos'
+    };
+
+    const polinomio = {
+        x: xRange,
+        y: yRange,
+        mode: 'lines',
+        type: 'scatter',
+        name: 'Polinomio'
+    };
+
+    // Punto evaluado
+    const puntoEvaluado = {
+        x: [evaluar],
+        y: [resultado],
+        mode: 'markers',
+        type: 'scatter',
+        name: `Punto Evaluado (${evaluar}, ${resultado.toFixed(2)})`,
+        marker: { color: 'red', size: 12 }
+    };
+
+    const datos = [puntos, polinomio, puntoEvaluado];
+
+    const layout = {
+        title: 'Gráfico del Polinomio de Interpolación de Newton',
+        xaxis: { title: 'x' },
+        yaxis: { title: 'f(x)' }
+    };
+
+    Plotly.newPlot('grafico', datos, layout);
+}
+
+
+
+    </script>
+</body>
+</html>

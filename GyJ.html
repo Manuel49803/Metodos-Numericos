@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gauss-Seidel y Jacobi</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #2b129b;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #0a40a5;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+
+        
+        button {
+            display: block;
+            margin: 10px auto;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #000000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gauss-Seidel y Jacobi</h1>
+        <form id="equations-form">
+            <label>Ecuación 1: <input type="text" id="eq1" placeholder="Ej: 2*x + 3*y + 4*z = 3" required></label><br>
+            <label>Ecuación 2: <input type="text" id="eq2" placeholder="Ej: 4*x + 9*y - z = 4" required></label><br>
+            <label>Ecuación 3: <input type="text" id="eq3" placeholder="Ej: 2*x + 6*y + 8*z = 5" required></label><br>
+            <button type="submit">Ordenar Ecuaciones</button>
+        </form>
+
+        <h2>Ecuaciones Ordenadas</h2>
+        <div id="sorted-equations"></div>
+
+        <h2>Resultados de Jacobi y Gauss-Seidel</h2>
+        <table id="jacobi-results">
+            <thead>
+                <tr>
+                    <th>Iteración</th>
+                    <th>x</th>
+                    <th>y</th>
+                    <th>z</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        
+        <button id="next-jacobi" style="display:none;">Siguiente Iteración (Jacobi)</button>
+
+        <table id="gauss-seidel-results">
+            <thead>
+                <tr>
+                    <th>Iteración</th>
+                    <th>x</th>
+                    <th>y</th>
+                    <th>z</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <button id="next-gauss-seidel" style="display:none;">Siguiente Iteración (Gauss-Seidel)</button>
+    </div>
+
+    <script>
+        let jacobiIndex = 0;
+        let gaussSeidelIndex = 0;
+        let jacobiResults = [];
+        let gaussSeidelResults = [];
+
+        // Función para parsear y obtener los coeficientes de las ecuaciones
+        function parseEquation(eq) {
+            const terms = eq.match(/([+-]?\d*\.*\d*)\*?([xyz])/g) || [];
+            const coefficients = { x: 0, y: 0, z: 0, b: 0 };
+
+            // Obtener el valor de b (el término constante)
+            const constantMatch = eq.match(/([+-]?\d*\.*\d*)\s*=\s*([+-]?\d*\.*\d*)/);
+            if (constantMatch) {
+                coefficients.b = parseFloat(constantMatch[2]);
+            }
+
+            terms.forEach(term => {
+                const match = term.match(/([+-]?\d*\.*\d*)\*?([xyz])/);
+                if (match) {
+                    const coeff = parseFloat(match[1]) || (match[1] === '+' || match[1] === '' ? 1 : -1);
+                    const varType = match[2];
+                    coefficients[varType] = coeff;
+                }
+            });
+
+            return coefficients;
+        }
+
+        // Función para ordenar las ecuaciones según la prioridad de z
+        function sortEquations(eq1, eq2, eq3) {
+            const coeffs1 = parseEquation(eq1);
+            const coeffs2 = parseEquation(eq2);
+            const coeffs3 = parseEquation(eq3);
+
+            const equations = [
+                { eq: eq1, coeff: coeffs1 },
+                { eq: eq2, coeff: coeffs2 },
+                { eq: eq3, coeff: coeffs3 }
+            ];
+
+            equations.sort((a, b) => Math.abs(b.coeff.z) - Math.abs(a.coeff.z));
+
+            const maxZEquation = equations[0];
+            const restOfEquations = equations.slice(1);
+
+            return [...restOfEquations, maxZEquation].map(item => item.eq);
+        }
+
+        // Función para mostrar las ecuaciones ordenadas
+        function displaySortedEquations(sortedEq1, sortedEq2, sortedEq3) {
+            const sortedEquationsDiv = document.getElementById('sorted-equations');
+            sortedEquationsDiv.innerHTML = `
+                <p>Ecuación 1: ${sortedEq1}</p>
+                <p>Ecuación 2: ${sortedEq2}</p>
+                <p>Ecuación 3: ${sortedEq3}</p>
+            `;
+        }
+
+        // Método de Jacobi
+        function jacobiMethod(coeffs, x0, y0, z0, maxIterations, tolerance) {
+            let results = [];
+            let x = x0, y = y0, z = z0;
+            for (let i = 0; i < maxIterations; i++) {
+                let newX = (coeffs[0].b - coeffs[0].y * y - coeffs[0].z * z) / coeffs[0].x;
+                let newY = (coeffs[1].b - coeffs[1].x * x - coeffs[1].z * z) / coeffs[1].y;
+                let newZ = (coeffs[2].b - coeffs[2].x * x - coeffs[2].y * y) / coeffs[2].z;
+
+                results.push({ iteration: i + 1, x: newX, y: newY, z: newZ });
+
+                if (
+                    Math.abs(newX - x) < tolerance &&
+                    Math.abs(newY - y) < tolerance &&
+                    Math.abs(newZ - z) < tolerance
+                ) {
+                    break;
+                }
+
+                x = newX;
+                y = newY;
+                z = newZ;
+            }
+            return results;
+        }
+
+        // Método de Gauss-Seidel
+        function gaussSeidelMethod(coeffs, x0, y0, z0, maxIterations, tolerance) {
+            let results = [];
+            let x = x0, y = y0, z = z0;
+            for (let i = 0; i < maxIterations; i++) {
+                x = (coeffs[0].b - coeffs[0].y * y - coeffs[0].z * z) / coeffs[0].x;
+                y = (coeffs[1].b - coeffs[1].x * x - coeffs[1].z * z) / coeffs[1].y;
+                z = (coeffs[2].b - coeffs[2].x * x - coeffs[2].y * y) / coeffs[2].z;
+
+                results.push({ iteration: i + 1, x: x, y: y, z: z });
+
+                if (
+                    Math.abs(coeffs[0].b - (coeffs[0].x * x + coeffs[0].y * y + coeffs[0].z * z)) < tolerance &&
+                    Math.abs(coeffs[1].b - (coeffs[1].x * x + coeffs[1].y * y + coeffs[1].z * z)) < tolerance &&
+                    Math.abs(coeffs[2].b - (coeffs[2].x * x + coeffs[2].y * y + coeffs[2].z * z)) < tolerance
+                ) {
+                    break;
+                }
+            }
+            return results;
+        }
+
+        // Función para manejar la entrada del formulario y el cálculo
+        document.getElementById('equations-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // Obtener las ecuaciones del formulario
+            const eq1 = document.getElementById('eq1').value;
+            const eq2 = document.getElementById('eq2').value;
+            const eq3 = document.getElementById('eq3').value;
+
+            // Ordenar las ecuaciones
+            const [sortedEq1, sortedEq2, sortedEq3] = sortEquations(eq1, eq2, eq3);
+            displaySortedEquations(sortedEq1, sortedEq2, sortedEq3);
+
+            // Obtener los coeficientes de las ecuaciones
+            const coeffs1 = parseEquation(sortedEq1);
+            const coeffs2 = parseEquation(sortedEq2);
+            const coeffs3 = parseEquation(sortedEq3);
+            const coeffs = [coeffs1, coeffs2, coeffs3];
+
+            // Inicializar los valores iniciales y parámetros
+            const x0 = 0, y0 = 0, z0 = 0;
+            const maxIterations = 100;
+            const tolerance = 1e-6;
+
+            // Calcular los resultados de Jacobi y Gauss-Seidel
+            jacobiResults = jacobiMethod(coeffs, x0, y0, z0, maxIterations, tolerance);
+            gaussSeidelResults = gaussSeidelMethod(coeffs, x0, y0, z0, maxIterations, tolerance);
+
+            // Mostrar los resultados de la primera iteración
+            updateResultsTable('jacobi-results', jacobiResults, jacobiIndex);
+            updateResultsTable('gauss-seidel-results', gaussSeidelResults, gaussSeidelIndex);
+
+            // Mostrar los botones para la siguiente iteración
+            document.getElementById('next-jacobi').style.display = 'inline-block';
+            document.getElementById('next-gauss-seidel').style.display = 'inline-block';
+        });
+
+        // Función para actualizar la tabla con los resultados
+        function updateResultsTable(tableId, results, index) {
+            const tableBody = document.getElementById(tableId).getElementsByTagName('tbody')[0];
+            const result = results[index];
+            const row = tableBody.insertRow();
+            row.insertCell(0).textContent = result.iteration;
+            row.insertCell(1).textContent = result.x.toFixed(6);
+            row.insertCell(2).textContent = result.y.toFixed(6);
+            row.insertCell(3).textContent = result.z.toFixed(6);
+        }
+
+        // Función para mostrar la siguiente iteración de Jacobi
+        document.getElementById('next-jacobi').addEventListener('click', function () {
+            if (jacobiIndex < jacobiResults.length - 1) {
+                jacobiIndex++;
+                updateResultsTable('jacobi-results', jacobiResults, jacobiIndex);
+            } else {
+                alert('Jacobi ha convergido.');
+                document.getElementById('next-jacobi').style.display = 'none';
+            }
+        });
+
+        // Función para mostrar la siguiente iteración de Gauss-Seidel
+        document.getElementById('next-gauss-seidel').addEventListener('click', function () {
+            if (gaussSeidelIndex < gaussSeidelResults.length - 1) {
+                gaussSeidelIndex++;
+                updateResultsTable('gauss-seidel-results', gaussSeidelResults, gaussSeidelIndex);
+            } else {
+                alert('Gauss-Seidel ha convergido.');
+                document.getElementById('next-gauss-seidel').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
